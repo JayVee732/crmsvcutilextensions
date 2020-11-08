@@ -57,7 +57,6 @@ Target.create "Package" (fun _ ->
              OutputPath = packageDir
              WorkingDir = packageDir
              ReleaseNotes = release.Notes |> String.toLines
-             Dependencies = dependencies
              Description = description
              AccessKey = apiKey
              Publish = false 
@@ -70,6 +69,8 @@ open Fake.Core.TargetOperators
 // Dependencies
 "Clean"
   ==> "Build"
+
+"Build"
   ==> "Package"
   
 Target.runOrDefault "Package"

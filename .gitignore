@@ -189,3 +189,4 @@ FakesAssemblies/
 
 .fake
 .vs
+/build.fsx.lock

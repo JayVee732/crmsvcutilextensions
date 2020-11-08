@@ -7,5 +7,5 @@ if not exist tools\nuget.exe (
     PowerShell -NoProfile -ExecutionPolicy Bypass -Command "& '.\download-nuget.ps1'"
 )
 
-"tools\nuget.exe" "Install" "FAKE" -OutputDirectory "packages" -ExcludeVersion
-"packages\FAKE\tools\Fake.exe" build.fsx
+dotnet tool install fake-cli --tool-path "packages\fake-cli"
+"packages\fake-cli\fake.exe" run build.fsx

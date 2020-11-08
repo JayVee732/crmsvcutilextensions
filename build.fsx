@@ -1,67 +1,75 @@
-﻿#r @"packages/FAKE/tools/FakeLib.dll"
-open Fake
-open Fake.AssemblyInfoFile
-open Fake.ReleaseNotesHelper
-open Fake.EnvironmentHelper
+﻿#r "paket:
+nuget Fake.Core.ReleaseNotes
+nuget Fake.Core.Target
+nuget Fake.DotNet.AssemblyInfoFile
+nuget Fake.DotNet.MSBuild
+nuget Fake.DotNet.NuGet
+nuget Fake.IO.FileSystem //"
+#load "./.fake/build.fsx/intellisense.fsx"
+
+open Fake.Core
+open Fake.DotNet
+open Fake.DotNet.NuGet
+open Fake.IO
+open Fake.IO.FileSystemOperators
+open Fake.IO.Globbing.Operators
 
 let buildDir = "./build/"
 
 let projectName = "CRMSvcUtilExtensions"
 let authors = ["Sebastian Holager"]
 let description = "A library with extensions to CRMSvcUtil"
-let release = LoadReleaseNotes "RELEASE_NOTES.md"
-let apiKey = getBuildParam "apiKey"
+let release = ReleaseNotes.load "RELEASE_NOTES.md"
+let apiKey = Environment.environVarOrDefault "apiKey" " "
 
-Target "Clean" (fun _ ->
-    CleanDir buildDir
-    setEnvironVar "Version" release.NugetVersion
+Target.create "Clean" (fun _ ->
+  Shell.cleanDir buildDir
+  Environment.setEnvironVar "Version" release.NugetVersion
 )
 
-Target "Build" (fun _ ->
-    RestorePackages()
+Target.create "Build" (fun _ ->
+    AssemblyInfoFile.createCSharp "/src/CRMSvcUtilExtensions/Properties/AssemblyInfo.cs"
+        [AssemblyInfo.Title projectName
+         AssemblyInfo.Description description
+         AssemblyInfo.Product projectName
+         AssemblyInfo.Guid "76e6ae49-230a-472b-a132-e8ad2f821e64"
+         AssemblyInfo.Version release.AssemblyVersion
+         AssemblyInfo.FileVersion release.AssemblyVersion]
 
-    CreateCSharpAssemblyInfo "./src/CRMSvcUtilExtensions/Properties/AssemblyInfo.cs"
-        [Attribute.Title projectName
-         Attribute.Description description
-         Attribute.Product projectName
-         Attribute.Guid "76e6ae49-230a-472b-a132-e8ad2f821e64"
-         Attribute.Version release.AssemblyVersion
-         Attribute.FileVersion release.AssemblyVersion]
-
-    !! "/**/*.csproj"
-      |> MSBuildRelease buildDir "Build"
-      |> Log "Build-Output: "
+    !! "./**/*.csproj"
+    |> MSBuild.runRelease id buildDir "Build"
+    |> Trace.logItems "AppBuild-Output: "
 )
 
-Target "Package" (fun _ ->
+Target.create "Package" (fun _ ->
     let packageDir = "./packaging/"
-    let net462Dir = packageDir @@ "lib/net462/"
-    CleanDirs [packageDir;net462Dir]
-    let dependencies = getDependencies "./src/CRMSvcUtilExtensions/packages.config"
+    let net472Dir = packageDir @@ "lib/net472/"
+    Shell.cleanDirs [packageDir;net472Dir]
+    let dependencies = NuGet.getDependencies "./src/CRMSvcUtilExtensions/packages.config"
+    
+    Shell.copyFile net472Dir (buildDir @@ "CRMSvcUtilExtensions.dll")
 
-    CopyFile net462Dir (buildDir @@ "CRMSvcUtilExtensions.dll")
-
-    NuGet (fun p ->
+    NuGet.NuGet (fun p ->
         {p with
-            Project = projectName
-            Authors = authors
-            Version = release.NugetVersion
-            OutputPath = packageDir
-            WorkingDir = packageDir
-            ReleaseNotes = release.Notes |> toLines
-            Description = description
-            Dependencies = dependencies
-            AccessKey = apiKey
-            Publish = hasBuildParam "apiKey"
-            PublishUrl = "https://www.nuget.org/api/v2/package" })
+             Project = projectName
+             Authors = authors
+             Version = release.NugetVersion
+             OutputPath = packageDir
+             WorkingDir = packageDir
+             ReleaseNotes = release.Notes |> String.toLines
+             Dependencies = dependencies
+             Description = description
+             AccessKey = apiKey
+             Publish = false 
+             PublishUrl = "https://www.nuget.org/api/v2/package" })
         "./src/CRMSvcUtilExtensions/CRMSvcUtilExtensions.nuspec"
 )
+
+open Fake.Core.TargetOperators
 
 // Dependencies
 "Clean"
   ==> "Build"
-
-"Build"
   ==> "Package"
-
-RunTargetOrDefault "Package"
+  
+Target.runOrDefault "Package"
